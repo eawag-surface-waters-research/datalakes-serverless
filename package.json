@@ -1,0 +1,19 @@
+{
+  "name": "datalakes-serverless",
+  "version": "1.0.0",
+  "description": "Serverless nodejs API for the Datalakes projet.",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pg": "^8.3.0"
+  },
+  "devDependencies": {
+    "serverless-domain-manager": "^6.0.3",
+    "serverless-offline": "^8.8.0"
+  }
+}

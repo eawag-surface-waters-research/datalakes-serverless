@@ -1,0 +1,64 @@
+org: jamesrunnalls
+app: datalakes-serverless
+service: datalakes-serverless
+plugins:
+  - serverless-offline
+  - serverless-domain-manager
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+
+custom:
+  customDomain:
+    domainName: serverless.datalakes-eawag.ch
+    basePath: ''
+    stage: dev
+    createRoute53Record: true
+
+functions:
+  getDataset:
+    handler: handler.getDataset
+    events:
+      - http:
+          path: datasets/{id}
+          method: get
+          cors: true
+  getAllDatasets:
+    handler: handler.getAllDatasets
+    events:
+      - http:
+          path: datasets
+          method: get
+          cors: true
+  getAllDatasetparameters:
+    handler: handler.getAllDatasetparameters
+    events:
+      - http:
+          path: datasetparameters
+          method: get
+          cors: true
+  getSelectiontable:
+    handler: handler.getSelectiontable
+    events:
+      - http:
+          path: selectiontables/{table}
+          method: get
+          cors: true
+  getAllSelectiontables:
+    handler: handler.getAllSelectiontables
+    events:
+      - http:
+          path: selectiontables
+          method: get
+          cors: true
+  getAllFiles:
+    handler: handler.getAllFiles
+    events:
+      - http:
+          path: files
+          method: get
+          cors: true
+      
