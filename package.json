@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "pg": "^8.3.0"
+    "serverless-postgres": "^1.10.3"
   },
   "devDependencies": {
     "serverless-domain-manager": "^6.0.3",

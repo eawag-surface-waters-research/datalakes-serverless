@@ -1,5 +1,16 @@
 "use strict";
-const db = require("./db");
+const ServerlessClient = require("serverless-postgres");
+const creds = require("./config");
+
+const client = new ServerlessClient({
+  user: creds.user,
+  host: creds.host,
+  database: creds.database,
+  password: creds.password,
+  port: creds.port,
+  debug: true,
+  delayMs: 3000,
+});
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -14,28 +25,29 @@ function isInt(value) {
   }
 }
 
-module.exports.getAllDatasets = (event, context, callback) => {
+module.exports.getAllDatasets = async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  db.query(
-    "SELECT accompanyingdata, citation, datasource, datasourcelink, description, downloads, embargo, fileconnect, id, lakes_id, latitude, licenses_id, liveconnect, longitude, mapplot, mapplotfunction, maxdatetime, maxdepth, mindatetime, mindepth, organisations_id, origin, persons_id, plotproperties, prefile, prescript, projects_id, renku, repositories_id, title, monitor, internal FROM datasets WHERE title IS NOT NULL AND dataportal IS NOT NULL"
-  )
-    .then((res) => {
-      return callback(null, {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(res.rows),
-      });
-    })
-    .catch((e) => {
-      callback(null, {
-        statusCode: e.statusCode || 500,
-        headers,
-        body: "Could not find Dataset: " + e,
-      });
+  try {
+    await client.connect();
+    const res = await client.query(
+      "SELECT accompanyingdata, citation, datasource, datasourcelink, description, downloads, embargo, fileconnect, id, lakes_id, latitude, licenses_id, liveconnect, longitude, mapplot, mapplotfunction, maxdatetime, maxdepth, mindatetime, mindepth, organisations_id, origin, persons_id, plotproperties, prefile, prescript, projects_id, renku, repositories_id, title, monitor, internal FROM datasets WHERE title IS NOT NULL AND dataportal IS NOT NULL"
+    );
+    await client.clean();
+    return callback(null, {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(res.rows),
     });
+  } catch (e) {
+    callback(null, {
+      statusCode: e.statusCode || 500,
+      headers,
+      body: "Failed to collect datasets. " + e,
+    });
+  }
 };
 
-module.exports.getDataset = (event, context, callback) => {
+module.exports.getDataset = async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
   const id = event.pathParameters.id;
   if (!isInt(id)) {
@@ -45,177 +57,123 @@ module.exports.getDataset = (event, context, callback) => {
       body: "ID must be an integer",
     });
   }
-  db.query(
-    "SELECT accompanyingdata, citation, datasource, datasourcelink, description, downloads, embargo, fileconnect, id, lakes_id, latitude, licenses_id, liveconnect, longitude, mapplot, mapplotfunction, maxdatetime, maxdepth, mindatetime, mindepth, organisations_id, origin, persons_id, plotproperties, prefile, prescript, projects_id, renku, repositories_id, title, monitor FROM datasets WHERE id = $1",
-    [id]
-  )
-    .then((res) => {
-      if (res.rows.length < 1) {
-        return callback(null, {
-          statusCode: 404,
-          headers,
-          body: "Dataset not found in database",
-        });
-      }
+  try {
+    await client.connect();
+    const res = await client.query(
+      `SELECT accompanyingdata, citation, datasource, datasourcelink, description, downloads, embargo, fileconnect, id, lakes_id, latitude, licenses_id, liveconnect, longitude, mapplot, mapplotfunction, maxdatetime, maxdepth, mindatetime, mindepth, organisations_id, origin, persons_id, plotproperties, prefile, prescript, projects_id, renku, repositories_id, title, monitor FROM datasets WHERE id = ${id}`
+    );
+    await client.clean();
+    if (res.rows.length < 1) {
       return callback(null, {
-        statusCode: 200,
+        statusCode: 404,
         headers,
-        body: JSON.stringify(res.rows[0]),
+        body: "Dataset not found in database",
       });
-    })
-    .catch((e) => {
-      callback(null, {
-        statusCode: e.statusCode || 500,
-        headers,
-        body: "Could not find Dataset: " + e,
-      });
-    });
-};
-
-module.exports.getAllDatasetparameters = (event, context, callback) => {
-  context.callbackWaitsForEmptyEventLoop = false;
-  if (event.queryStringParameters) {
-    var datasets_id = event.queryStringParameters.datasets_id;
-    var parameters_id = event.queryStringParameters.parameters_id;
-    if ((datasets_id, parameters_id)) {
-      if (!isInt(datasets_id) || !isInt(parameters_id)) {
-        return callback(null, {
-          statusCode: 400,
-          headers,
-          body: "ID must be an integer",
-        });
-      }
-      db.query(
-        "SELECT * FROM datasetparameters WHERE datasets_id = $1 AND parameters_id = $2",
-        [datasets_id, parameters_id]
-      )
-        .then((res) => {
-          if (res.rows.length < 1) {
-            return callback(null, {
-              statusCode: 404,
-              headers,
-              body: "Dataset not found in database",
-            });
-          }
-          return callback(null, {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(res.rows[0]),
-          });
-        })
-        .catch((e) => {
-          callback(null, {
-            statusCode: e.statusCode || 500,
-            headers,
-            body: "Could not find Dataset: " + e,
-          });
-        });
-    } else if (datasets_id) {
-      if (!isInt(datasets_id)) {
-        return callback(null, {
-          statusCode: 400,
-          headers,
-          body: "ID must be an integer",
-        });
-      }
-      db.query("SELECT * FROM datasetparameters WHERE datasets_id = $1", [
-        datasets_id,
-      ])
-        .then((res) => {
-          if (res.rows.length < 1) {
-            return callback(null, {
-              statusCode: 404,
-              headers,
-              body: "Dataset not found in database",
-            });
-          }
-          return callback(null, {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(res.rows),
-          });
-        })
-        .catch((e) => {
-          callback(null, {
-            statusCode: e.statusCode || 500,
-            headers,
-            body: "Could not find Dataset: " + e,
-          });
-        });
-    } else {
-      db.query("SELECT * FROM datasetparameters")
-        .then((res) => {
-          return callback(null, {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(res.rows),
-          });
-        })
-        .catch((e) => {
-          callback(null, {
-            statusCode: e.statusCode || 500,
-            headers,
-            body: "Could not find Dataset: " + e,
-          });
-        });
     }
-  } else {
-    db.query("SELECT * FROM datasetparameters")
-      .then((res) => {
-        return callback(null, {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(res.rows),
-        });
-      })
-      .catch((e) => {
-        callback(null, {
-          statusCode: e.statusCode || 500,
-          headers,
-          body: "Could not find Dataset: " + e,
-        });
-      });
+    return callback(null, {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(res.rows[0]),
+    });
+  } catch (e) {
+    callback(null, {
+      statusCode: e.statusCode || 500,
+      headers,
+      body: "Failed to collect dataset. " + e,
+    });
   }
 };
 
-module.exports.getAllSelectiontables = (event, context, callback) => {
+module.exports.getAllDatasetparameters = async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  Promise.all([
-    db.query("SELECT * FROM parameters"),
-    db.query("SELECT * FROM lakes"),
-    db.query("SELECT * FROM organisations"),
-    db.query("SELECT * FROM persons"),
-    db.query("SELECT * FROM projects"),
-    db.query("SELECT * FROM sensors"),
-    db.query("SELECT * FROM licenses"),
-  ])
-    .then((res) => {
-      var selectiontables = {
-        parameters: res[0].rows,
-        lakes: res[1].rows,
-        organisations: res[2].rows,
-        persons: res[3].rows,
-        projects: res[4].rows,
-        sensors: res[5].rows,
-        licenses: res[6].rows,
-        axis: [{ name: "M" }, { name: "x" }, { name: "y" }, { name: "z" }],
-      };
+  try {
+    var query = "SELECT * FROM datasetparameters";
+    if (event.queryStringParameters) {
+      var datasets_id = event.queryStringParameters.datasets_id;
+      var parameters_id = event.queryStringParameters.parameters_id;
+      if ((datasets_id, parameters_id)) {
+        if (!isInt(datasets_id) || !isInt(parameters_id)) {
+          return callback(null, {
+            statusCode: 400,
+            headers,
+            body: "ID must be an integer",
+          });
+        }
+        query = `SELECT * FROM datasetparameters WHERE datasets_id = ${datasets_id} AND parameters_id = ${parameters_id}`;
+      } else if (datasets_id) {
+        if (!isInt(datasets_id)) {
+          return callback(null, {
+            statusCode: 400,
+            headers,
+            body: "ID must be an integer",
+          });
+        }
+        query = `SELECT * FROM datasetparameters WHERE datasets_id = ${datasets_id}`;
+      }
+    }
+    await client.connect();
+    const res = await client.query(query);
+    await client.clean();
+    if (res.rows.length < 1) {
       return callback(null, {
-        statusCode: 200,
+        statusCode: 404,
         headers,
-        body: JSON.stringify(selectiontables),
+        body: "Dataset not found in database",
       });
-    })
-    .catch((e) => {
-      callback(null, {
-        statusCode: e.statusCode || 500,
-        headers,
-        body: "Failed to collect tables: " + e,
-      });
+    }
+    return callback(null, {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(res.rows),
     });
+  } catch (e) {
+    callback(null, {
+      statusCode: e.statusCode || 500,
+      headers,
+      body: "Failed to collect datasetparameters. " + e,
+    });
+  }
 };
 
-module.exports.getSelectiontable = (event, context, callback) => {
+module.exports.getAllSelectiontables = async (event, context, callback) => {
+  context.callbackWaitsForEmptyEventLoop = false;
+  try {
+    await client.connect();
+    const res = await Promise.all([
+      client.query("SELECT * FROM parameters"),
+      client.query("SELECT * FROM lakes"),
+      client.query("SELECT * FROM organisations"),
+      client.query("SELECT * FROM persons"),
+      client.query("SELECT * FROM projects"),
+      client.query("SELECT * FROM sensors"),
+      client.query("SELECT * FROM licenses"),
+    ]);
+    await client.clean();
+    const selectiontables = {
+      parameters: res[0].rows,
+      lakes: res[1].rows,
+      organisations: res[2].rows,
+      persons: res[3].rows,
+      projects: res[4].rows,
+      sensors: res[5].rows,
+      licenses: res[6].rows,
+      axis: [{ name: "M" }, { name: "x" }, { name: "y" }, { name: "z" }],
+    };
+    return callback(null, {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(selectiontables),
+    });
+  } catch (e) {
+    callback(null, {
+      statusCode: e.statusCode || 500,
+      headers,
+      body: "Failed to collect tables. " + e,
+    });
+  }
+};
+
+module.exports.getSelectiontable = async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
   const table = event.pathParameters.table;
   const tables = [
@@ -235,112 +193,68 @@ module.exports.getSelectiontable = (event, context, callback) => {
     });
   }
 
-  db.query(`SELECT * FROM ${table}`)
-    .then((res) => {
-      return callback(null, {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(res.rows),
-      });
-    })
-    .catch((e) => {
-      callback(null, {
-        statusCode: e.statusCode || 500,
-        headers,
-        body: "Failed to collect table: " + e,
-      });
+  try {
+    await client.connect();
+    const res = await client.query(`SELECT * FROM ${table}`);
+    await client.clean();
+    return callback(null, {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(res.rows),
     });
+  } catch (e) {
+    callback(null, {
+      statusCode: e.statusCode || 500,
+      headers,
+      body: "Failed to collect table. " + e,
+    });
+  }
 };
 
-module.exports.getAllFiles = (event, context, callback) => {
+module.exports.getAllFiles = async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  if (event.queryStringParameters) {
-    var datasets_id = event.queryStringParameters.datasets_id;
-    var type = event.queryStringParameters.type;
+  try {
+    var query = "SELECT * FROM files";
+    if (event.queryStringParameters) {
+      var datasets_id = event.queryStringParameters.datasets_id;
+      var type = event.queryStringParameters.type;
 
-    if (datasets_id) {
-      if (!isInt(datasets_id)) {
-        return callback(null, {
-          statusCode: 400,
-          headers,
-          body: "ID must be an integer",
-        });
-      }
-      if (type) {
-        if (type !== "json") {
+      if (datasets_id) {
+        if (!isInt(datasets_id)) {
           return callback(null, {
             statusCode: 400,
             headers,
-            body: "Type query not available, try using json",
+            body: "ID must be an integer",
           });
         }
-        db.query(
-          "SELECT * FROM files WHERE datasets_id = $1 AND filetype = 'json'",
-          [datasets_id]
-        )
-          .then((res) => {
+        if (type) {
+          if (type !== "json") {
             return callback(null, {
-              statusCode: 200,
+              statusCode: 400,
               headers,
-              body: JSON.stringify(res.rows),
+              body: "Type query not available, try using json",
             });
-          })
-          .catch((e) => {
-            callback(null, {
-              statusCode: e.statusCode || 500,
-              headers,
-              body: "Couldn't collect files: " + e,
-            });
-          });
-      } else {
-        db.query("SELECT * FROM files WHERE datasets_id = $1", [datasets_id])
-          .then((res) => {
-            return callback(null, {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify(res.rows),
-            });
-          })
-          .catch((e) => {
-            callback(null, {
-              statusCode: e.statusCode || 500,
-              headers,
-              body: "Couldn't collect files: " + e,
-            });
-          });
+          }
+          query = `SELECT * FROM files WHERE datasets_id = ${datasets_id} AND filetype = 'json'`;
+        } else {
+          query = `SELECT * FROM files WHERE datasets_id = ${datasets_id}`;
+        }
       }
-    } else {
-      db.query("SELECT * FROM files")
-        .then((res) => {
-          return callback(null, {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(res.rows),
-          });
-        })
-        .catch((e) => {
-          callback(null, {
-            statusCode: e.statusCode || 500,
-            headers,
-            body: "Couldn't collect files: " + e,
-          });
-        });
     }
-  } else {
-    db.query("SELECT * FROM files")
-      .then((res) => {
-        return callback(null, {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify(res.rows),
-        });
-      })
-      .catch((e) => {
-        callback(null, {
-          statusCode: e.statusCode || 500,
-          headers,
-          body: "Couldn't collect files: " + e,
-        });
-      });
+
+    await client.connect();
+    const res = await client.query(query);
+    await client.clean();
+    return callback(null, {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(res.rows),
+    });
+  } catch (e) {
+    callback(null, {
+      statusCode: e.statusCode || 500,
+      headers,
+      body: "Failed to collect files. " + e,
+    });
   }
 };
